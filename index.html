@@ -1,480 +1,274 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence, useScroll, useSpring } from 'framer-motion';
-
-// --- 获奖级配色：奶油感粉蓝对比 ---
-const COLORS = {
-  bg: '#FFF9F2',      // 奶油白
-  text: '#5C4033',    // 可可棕
-  pink: '#FFDAE9',    // 樱花粉
-  blue: '#DCF2FF',    // 清透蓝
-  yellow: '#FFF3AD',  // 柠檬黄
-  accent: '#FF9B9B',  // 珊瑚橘
-};
-
-const App = () => {
-  const [activeTab, setActiveTab] = useState('Home');
-  const [isAboutOpen, setIsAboutOpen] = useState(false); 
-  const [isStrengthOpen, setIsStrengthOpen] = useState(false); 
-  const [isJournalOpen, setIsJournalOpen] = useState(false);   
-  const [isExploreOpen, setIsExploreOpen] = useState(false); 
-  const [isJournalHovered, setIsJournalHovered] = useState(false); 
-  const [isGalleryHovered, setIsGalleryHovered] = useState(false); 
-  
-  // --- 交互状态 ---
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [isClicked, setIsClicked] = useState(false);
-  const containerRef = useRef(null);
-
-  const handleMouseMove = (e) => {
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width - 0.5;
-      const y = (e.clientY - rect.top) / rect.height - 0.5;
-      setMousePos({ x, y });
-    }
-  };
-
-  const handleWasshoi = () => {
-    setIsClicked(true);
-    setTimeout(() => setIsClicked(false), 800);
-  };
-
-  // --- 随机语录系统 ---
-  const quotes = [
-    "即使流泪也要努力吃拉面。",
-    "呜哇……又是充满希望的一天！",
-    "ヤ哈！我们要去探险了吗？",
-    "只要有美味的零食，心情就会变好。",
-    "虽然有点辛苦，但还是要加油呀。",
-    "这就是生活中的“わッ”瞬间！",
-    "今天也是超级幸运的小雪球。",
-    "努力过后的烤棉花糖最甜了。",
-    "没关系的，慢慢来也可以。"
-  ];
-  const [quoteIndex, setQuoteIndex] = useState(0);
-
-  const handleQuoteClick = () => {
-    let nextIndex;
-    do {
-      nextIndex = Math.floor(Math.random() * quotes.length);
-    } while (nextIndex === quoteIndex);
-    setQuoteIndex(nextIndex);
-  };
-
-  const { scrollYProgress } = useScroll();
-  const scaleX = useSpring(scrollYProgress, {
-    stiffness: 100,
-    damping: 30,
-    restDelta: 0.001
-  });
-
-  const snowflakes = Array.from({ length: 20 });
-
-  const workExperiences = [
-    {
-      date: "2025.06 - 至今",
-      company: "重庆悦派对信息科技有限公司",
-      role: "市场调研专员",
-      content: "负责全面市场调研工作，自主搭建并维护竞品对比库看板，系统整合竞品内部动态与外部表现，涵盖 20+关键指标，实现竞品数据可视化追踪；独立完成营销策略与运营策略专题研究，输出数份深度分析报告，其中数份直接应用于公司营销方案优化；主导台湾、韩国、日本等重点亚洲市场的进入可行性研究，完成区域政策、渠道与用户三维度分析。",
-      color: "#FF9B9B"
-    },
-    {
-      date: "2024.03 - 2024.12",
-      company: "ARKEMA(中国)投资有限公司",
-      role: "品牌传播专员",
-      content: "独立策划并统筹 WDCC 设计大会、国际新型肥料展及法领馆四十周年庆典等品牌项目，从创意策划、资源整合到现场执行实现全流程闭环管理。体系化运营“市场日”“产品日”及社团活动，推动内部活动品牌化，年度落地活动 10+场，显著提升员工参与度与组织凝聚力。独立运营企业微信与公众号，负责内容策划与发布，协同维护内外网新闻，确保品牌信息一致、及时触达内外部受众。",
-      color: "#FFF3AD"
-    },
-    {
-      date: "2025.01 - 2025.03",
-      company: "IPSOS(中国)投资有限公司",
-      role: "市场调研与用户研究专员",
-      content: "参与了针对连锁餐饮品牌'米村拌饭'的专项调研项目，通过问卷和访谈收集消费者偏好和门店需求数据，深度访谈内部人员，分析百事可乐现有合作模式，并评估可口可乐的替代可行性。协助设计了'拌饭+可乐 mini 罐'等捆绑套餐方案，为甲方公司拓展餐饮渠道提供数据支持。",
-      color: "#DCF2FF"
-    },
-    {
-      date: "2023.10 - 2023.12",
-      company: "上海华因极数科技发展有限公司",
-      role: "市场调研与用户研究专员",
-      content: "主要负责 vivo 手机用户调研数据分析 work。参与调研方案制定，收集用户数据并进行清理预处理。运用数据分析工具深入挖掘用户行为、偏好及痛点，撰写详细报告并以可视化方式呈现结果。",
-      color: "#FFDAE9"
-    }
-  ];
-
-  return (
-    <div className="min-h-screen relative selection:bg-[#FFB7D5] selection:text-white overflow-x-hidden" style={{ backgroundColor: COLORS.bg, color: COLORS.text }}>
-      
-      {/* 动态落雪背景 */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        {snowflakes.map((_, i) => (
-          <motion.div
-            key={i}
-            initial={{ y: -20, x: Math.random() * 100 + 'vw', opacity: 0 }}
-            animate={{ 
-              y: '110vh', 
-              opacity: [0, 0.4, 0],
-              x: (Math.random() * 100 - 10) + 'vw'
-            }}
-            transition={{ 
-              duration: Math.random() * 10 + 10, 
-              repeat: Infinity, 
-              ease: "linear",
-              delay: Math.random() * 20
-            }}
-            className="text-white text-xl"
-          >
-            ❄
-          </motion.div>
-        ))}
-      </div>
-
-      <motion.div className="fixed top-0 left-0 right-0 h-1.5 bg-[#FFDAE9] z-[60] origin-left" style={{ scaleX }} />
-
-      {/* 导航栏 */}
-      <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-5xl bg-white/80 backdrop-blur-md border-[3px] border-[#5C4033] rounded-full px-8 py-3 flex justify-between items-center shadow-[0px_10px_30px_rgba(92,64,51,0.08)]">
-        <motion.div whileHover={{ scale: 1.1, rotate: 5 }} className="text-2xl font-black tracking-tighter cursor-pointer flex items-center gap-1">❄.LOG</motion.div>
-        <div className="flex gap-8 font-bold text-sm items-center">
-          <motion.a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('Home'); window.scrollTo({top:0, behavior:'smooth'}); }} className={`relative cursor-pointer ${activeTab === 'Home' ? 'text-[#FF9B9B]' : ''}`}>
-            首页
-            {activeTab === 'Home' && <motion.div layoutId="underline" className="absolute -bottom-1 left-0 right-0 h-1 bg-[#FF9B9B] rounded-full" />}
-          </motion.a>
-          <motion.a onMouseEnter={() => setIsJournalHovered(true)} onMouseLeave={() => setIsJournalHovered(false)} onClick={(e) => { e.preventDefault(); setIsJournalOpen(true); }} className="relative cursor-pointer h-6 flex items-center justify-center min-w-[80px]">
-            <AnimatePresence mode="wait">
-              {!isJournalHovered ? <motion.span key="j">讨伐日记</motion.span> : <motion.span key="w" className="text-[#FF9B9B] italic">工作经历</motion.span>}
-            </AnimatePresence>
-          </motion.a>
-          <motion.a onMouseEnter={() => setIsGalleryHovered(true)} onMouseLeave={() => setIsGalleryHovered(false)} onClick={(e) => { e.preventDefault(); setIsStrengthOpen(true); }} className="relative cursor-pointer h-6 flex items-center justify-center min-w-[80px]">
-            <AnimatePresence mode="wait">
-              {!isGalleryHovered ? <motion.span key="g">藏宝库</motion.span> : <motion.span key="s" className="text-[#FF9B9B] italic">我的优势</motion.span>}
-            </AnimatePresence>
-          </motion.a>
-          <motion.a onClick={(e) => { e.preventDefault(); setIsAboutOpen(true); }} className="relative cursor-pointer">关于我</motion.a>
-        </div>
-      </nav>
-
-      <main className="pt-32 pb-20 px-6 max-w-6xl mx-auto relative z-10">
-        <section className="flex flex-col lg:flex-row items-center gap-12 mb-32">
-          <motion.div initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} className="flex-1 space-y-6">
-            <div className="inline-block px-4 py-1 bg-[#FFF3AD] border-2 border-[#5C4033] rounded-full text-xs font-bold tracking-widest uppercase">向雪 RAINCO 的秘密基地</div>
-            <h1 className="text-5xl md:text-8xl font-black leading-[1.05]">又快乐地 <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FFB7D5] to-[#FF9B9B]">度过了一天</span> <span className="inline-block animate-bounce ml-2 text-[#5C4033]">!</span></h1>
-            <p className="text-lg md:text-xl font-medium opacity-80 max-w-lg leading-relaxed">这里是雪球的数字避风港。记录下生活中每一个“わッ”的瞬间。</p>
-            <div className="flex gap-4 pt-4">
-              <motion.button onClick={() => setIsExploreOpen(true)} whileHover={{ scale: 1.05 }} className="px-8 py-4 bg-[#5C4033] text-white rounded-[24px] font-bold shadow-[6px_6px_0_0_#FFDAE9]">开始探险 (ヤ哈!)</motion.button>
-              <motion.button onClick={() => setIsAboutOpen(true)} whileHover={{ scale: 1.05 }} className="px-8 py-4 bg-white border-[3px] border-[#5C4033] rounded-[24px] font-bold">关于雪球</motion.button>
-            </div>
-          </motion.div>
-
-          {/* --- [核心修改区] 首页右侧三人组动态区域 --- */}
-          <motion.div 
-            ref={containerRef}
-            onMouseMove={handleMouseMove}
-            initial={{ opacity: 0, scale: 0.8 }} 
-            animate={{ opacity: 1, scale: 1 }} 
-            className="flex-1 relative cursor-default group"
-          >
-            <div className="relative w-full aspect-square max-w-[500px] mx-auto bg-gradient-to-b from-[#DCF2FF] to-white rounded-full border-[4px] border-[#5C4033] shadow-[20px_20px_0_0_#FFDAE9] flex flex-col items-center justify-center overflow-hidden">
-                
-                {/* 装饰星光 */}
-                <motion.div animate={{ opacity: [0, 1, 0], scale: [0.8, 1.2, 0.8] }} transition={{ duration: 2, repeat: Infinity }} className="absolute top-20 left-20 text-2xl">✨</motion.div>
-                <motion.div animate={{ opacity: [0, 1, 0], scale: [1, 0.7, 1] }} transition={{ duration: 2.5, repeat: Infinity }} className="absolute bottom-40 right-10 text-xl">✨</motion.div>
-
-                {/* 角色容器 */}
-                <div className="relative w-full h-72 flex items-end justify-center gap-0">
-                  
-                  {/* 小八 (Hachiware) - 左侧蓝色猫猫 */}
-                  <motion.div 
-                    animate={{ y: [0, -5, 0], rotate: -2 + mousePos.x * 2 }}
-                    transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
-                    className="w-28 h-28 -mr-6 z-10 origin-bottom"
-                  >
-                    <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-sm">
-                      <path d="M25 35 Q30 15 45 32" fill="#80BFFF" stroke="#5C4033" strokeWidth="3" />
-                      <path d="M75 35 Q70 15 55 32" fill="#80BFFF" stroke="#5C4033" strokeWidth="3" />
-                      <ellipse cx="50" cy="65" rx="42" ry="32" fill="white" stroke="#5C4033" strokeWidth="3" />
-                      <path d="M15 55 Q50 30 85 55 L85 60 Q50 40 15 60 Z" fill="#80BFFF" />
-                      {!isClicked ? (
-                        <><circle cx={38 + mousePos.x * 4} cy={62 + mousePos.y * 4} r="4" fill="#5C4033" /><circle cx={62 + mousePos.x * 4} cy={62 + mousePos.y * 4} r="4" fill="#5C4033" /></>
-                      ) : (
-                        <><path d="M32 65 Q38 58 44 65" stroke="#5C4033" strokeWidth="3" fill="none" /><path d="M56 65 Q62 58 68 65" stroke="#5C4033" strokeWidth="3" fill="none" /></>
-                      )}
-                      <circle cx="20" cy="72" r="6" fill="#FFDAE9" opacity="0.6" />
-                      <circle cx="80" cy="72" r="6" fill="#FFDAE9" opacity="0.6" />
-                      <path d="M48 75 Q50 78 52 75" stroke="#5C4033" strokeWidth="2" fill="none" />
-                    </svg>
-                  </motion.div>
-
-                  {/* 吉伊卡哇 (Chiikawa) - 中间白色小熊 */}
-                  <motion.div 
-                    animate={{ y: [0, -8, 0], scale: isClicked ? 1.05 : 1 }}
-                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                    className="w-36 h-36 z-20 origin-bottom"
-                  >
-                    <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-md">
-                      <circle cx="28" cy="28" r="10" fill="white" stroke="#5C4033" strokeWidth="3" />
-                      <circle cx="72" cy="28" r="10" fill="white" stroke="#5C4033" strokeWidth="3" />
-                      <ellipse cx="50" cy="60" rx="45" ry="38" fill="white" stroke="#5C4033" strokeWidth="3" />
-                      {!isClicked ? (
-                        <><circle cx={35 + mousePos.x * 5} cy={58 + mousePos.y * 5} r="5" fill="#5C4033" /><circle cx={65 + mousePos.x * 5} cy={58 + mousePos.y * 5} r="5" fill="#5C4033" /></>
-                      ) : (
-                        <><path d="M28 60 Q35 52 42 60" stroke="#5C4033" strokeWidth="4" fill="none" strokeLinecap="round" /><path d="M58 60 Q65 52 72 60" stroke="#5C4033" strokeWidth="4" fill="none" strokeLinecap="round" /></>
-                      )}
-                      <circle cx="20" cy="70" r="8" fill="#FFDAE9" opacity="0.8" />
-                      <circle cx="80" cy="70" r="8" fill="#FFDAE9" opacity="0.8" />
-                      <path d="M47 70 Q50 73 53 70" stroke="#5C4033" strokeWidth="2" fill="none" />
-                    </svg>
-                  </motion.div>
-
-                  {/* 乌萨奇 (Usagi) - 右侧黄色兔子 */}
-                  <motion.div 
-                    animate={{ y: [0, -6, 0], rotate: 2 + mousePos.x * -2 }}
-                    transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-                    className="w-32 h-48 -ml-6 z-10 origin-bottom"
-                  >
-                    <svg viewBox="0 0 100 140" className="w-full h-full drop-shadow-sm">
-                      <path d="M35 50 L30 10 Q40 0 50 15 Z" fill="#FFF3AD" stroke="#5C4033" strokeWidth="3" />
-                      <path d="M65 50 L70 5 Q80 -5 85 15 Z" fill="#FFF3AD" stroke="#5C4033" strokeWidth="3" />
-                      <ellipse cx="50" cy="95" rx="42" ry="34" fill="#FFF3AD" stroke="#5C4033" strokeWidth="3" />
-                      {!isClicked ? (
-                        <><circle cx={38 + mousePos.x * 4} cy={92 + mousePos.y * 4} r="4" fill="#5C4033" /><circle cx={62 + mousePos.x * 4} cy={92 + mousePos.y * 4} r="4" fill="#5C4033" /></>
-                      ) : (
-                        <circle cx="50" cy="105" r="10" fill="#FF9B9B" stroke="#5C4033" strokeWidth="2" />
-                      )}
-                      <circle cx="22" cy="105" r="6" fill="#FFDAE9" opacity="0.6" />
-                      <circle cx="78" cy="105" r="6" fill="#FFDAE9" opacity="0.6" />
-                      <path d="M48 102 Q50 105 52 102" stroke="#5C4033" strokeWidth="2" fill="none" />
-                    </svg>
-                  </motion.div>
-                </div>
-
-                {/* 爱心喷发效果 */}
-                <AnimatePresence>
-                    {isClicked && (
-                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 pointer-events-none">
-                        {[...Array(12)].map((_, i) => (
-                          <motion.div
-                            key={i}
-                            initial={{ x: 0, y: 0, scale: 0, opacity: 1 }}
-                            animate={{ 
-                                x: (Math.random() - 0.5) * 450, 
-                                y: (Math.random() - 1) * 350, 
-                                scale: Math.random() + 0.5,
-                                opacity: 0 
-                            }}
-                            transition={{ duration: 1, ease: "easeOut" }}
-                            className="absolute left-1/2 top-1/2 text-3xl"
-                          >
-                            {['💖', '🌸', '✨', '🍓', '🍭'][i % 5]}
-                          </motion.div>
-                        ))}
-                      </motion.div>
-                    )}
-                </AnimatePresence>
-
-                <motion.button 
-                  onClick={handleWasshoi}
-                  whileHover={{ scale: 1.1, backgroundColor: COLORS.yellow }}
-                  whileTap={{ scale: 0.9 }}
-                  className="mt-6 px-12 py-3 bg-white border-4 border-[#5C4033] rounded-full text-2xl font-black shadow-[6px_6px_0_0_#5C4033] z-30 transition-colors"
-                >
-                  わッ！
-                </motion.button>
-            </div>
-          </motion.div>
-        </section>
-
-        <section className="grid grid-cols-1 md:grid-cols-4 gap-6 scroll-mt-32">
-          <motion.div onClick={() => setIsJournalOpen(true)} whileHover={{ y: -10 }} className="md:col-span-2 row-span-2 p-10 bg-white border-[3px] border-[#5C4033] rounded-[48px] shadow-[10px_10px_0_0_#DCF2FF] cursor-pointer">
-            <span className="px-4 py-1 bg-[#FFDAE9] border-2 border-[#5C4033] rounded-full text-xs font-bold mb-6 inline-block">最新随笔</span>
-            <h2 className="text-4xl font-black mb-4">讨伐日记</h2>
-            <p className="opacity-70 font-medium">这里记录了我所有的职业探险历程，每一段经历都是成长的勋章。</p>
-            <div className="flex items-center gap-4 mt-8">
-              <div className="w-12 h-12 bg-[#FFF3AD] border-2 border-[#5C4033] rounded-full flex items-center justify-center text-xl">⚔️</div>
-              <span className="font-bold underline decoration-4 underline-offset-4">查看完整工作经历</span>
-            </div>
-          </motion.div>
-          <div className="md:col-span-2 p-8 bg-[#FFF3AD] border-[3px] border-[#5C4033] rounded-[40px] flex items-center gap-6">
-            <div className="w-20 h-20 bg-white border-2 border-[#5C4033] rounded-3xl flex items-center justify-center text-4xl">🎒</div>
-            <div>
-              <h3 className="text-xl font-bold">今日状态：( ꩜ ᯅ ꩜ )</h3>
-              <p className="text-sm opacity-60 font-bold">正在整理藏宝库里的各种技能...</p>
-            </div>
-          </div>
-
-          <motion.div 
-            onClick={handleQuoteClick}
-            whileHover={{ scale: 1.02, rotate: 1 }}
-            whileTap={{ scale: 0.95 }}
-            className="p-8 bg-[#E0F2FF] border-[3px] border-[#5C4033] rounded-[40px] flex flex-col justify-between cursor-pointer select-none transition-all group"
-          >
-            <AnimatePresence mode="wait">
-              <motion.h3 
-                key={quoteIndex}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-                className="text-xl font-bold italic"
-              >
-                “{quotes[quoteIndex]}”
-              </motion.h3>
-            </AnimatePresence>
-            <div className="flex justify-between items-end">
-               <span className="text-[10px] font-black opacity-20 uppercase group-hover:opacity-40 transition-opacity">Click for magic ✨</span>
-               <div className="text-5xl">₍ᐢ• ˕ •ᐢ₎</div>
-            </div>
-          </motion.div>
-
-          <div onClick={() => setIsStrengthOpen(true)} className="p-2 bg-white border-[3px] border-[#5C4033] rounded-[40px] overflow-hidden group cursor-pointer">
-             <div className="w-full h-48 bg-[#FFDAE9] rounded-[32px] flex items-center justify-center text-5xl group-hover:scale-105 transition-transform">🍭</div>
-             <p className="text-center font-bold py-3">技能藏宝库</p>
-          </div>
-        </section>
-      </main>
-
-      <AnimatePresence>
-        {isExploreOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsExploreOpen(false)} className="absolute inset-0 bg-[#5C4033]/40 backdrop-blur-sm" />
-            <motion.div initial={{ scale: 0.9, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.9, y: 20, opacity: 0 }} className="relative w-full max-w-xl bg-white border-[4px] border-[#5C4033] rounded-[40px] shadow-[15px_15px_0_0_#FFDAE9] p-8 md:p-10">
-              <button onClick={() => setIsExploreOpen(false)} className="absolute top-6 right-6 w-10 h-10 border-2 border-[#5C4033] rounded-full flex items-center justify-center font-bold bg-white">✕</button>
-              <div className="flex flex-col items-center text-center mb-8">
-                 <div className="text-4xl mb-2">🖇️</div>
-                 <h3 className="text-2xl font-black underline decoration-4 underline-offset-4 decoration-[#FFDAE9]">平面设计存档</h3>
-              </div>
-              <div className="space-y-6">
-                <div>
-                  <h4 className="text-lg font-black flex items-center gap-2 mb-4">Graphic design：</h4>
-                  <ul className="space-y-3 pl-5">
-                    {[
-                      { label: "约稿周边存档", url: "http://t.cn/A6t1JEeV" },
-                      { label: "文字随笔存档", url: "http://t.cn/A6II0Tod" },
-                      { label: "哈利波特产出", url: "http://t.cn/A6cGjOG4" },
-                      { label: "终笔产出存档", url: "http://t.cn/A6cq5jld" },
-                      { label: "皓嫣产出存档", url: "http://t.cn/A6c5OFru" }
-                    ].map((link, i) => (
-                      <li key={i} className="flex items-center gap-3">
-                        <span className="text-[#5C4033]/30">▫️</span>
-                        <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-sm font-bold border-b-2 border-transparent hover:border-[#FF9B9B] hover:text-[#FF9B9B] transition-all">
-                          {link.label} <span className="text-[10px] opacity-40 font-normal ml-1">({link.url})</span>
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {isAboutOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsAboutOpen(false)} className="absolute inset-0 bg-[#5C4033]/40 backdrop-blur-sm" />
-            <motion.div initial={{ scale: 0.9, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.9, y: 20, opacity: 0 }} className="relative w-full max-w-5xl bg-white border-[4px] border-[#5C4033] rounded-[40px] shadow-[15px_15px_0_0_#FFDAE9] p-6 md:p-10 overflow-y-auto max-h-[90vh] custom-scrollbar">
-              <button onClick={() => setIsAboutOpen(false)} className="fixed top-8 right-8 w-10 h-10 border-2 border-[#5C4033] rounded-full flex items-center justify-center font-bold bg-white z-[110]">✕</button>
-              <div className="space-y-10">
-                <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-6 border-b-4 border-[#FFDAE9] pb-6">
-                  <div>
-                    <h2 className="text-5xl font-black mb-2">向 雪 <span className="text-xl font-normal opacity-50 ml-2">Personal Resume</span></h2>
-                    <div className="flex flex-wrap gap-4 text-sm font-bold opacity-80">
-                      <span>🎂 2000.12.10</span> <span>🏠 重庆市渝北区</span> <span>📧 2292976290@qq.com</span> <span>📞 17763024154</span>
-                    </div>
-                  </div>
-                  <div className="px-4 py-2 bg-[#DCF2FF] border-2 border-[#5C4033] rounded-2xl font-black italic">社会学硕士 · 土家族</div>
-                </div>
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-                  <div className="lg:col-span-7 space-y-10">
-                    <section>
-                      <h3 className="text-2xl font-black mb-6 flex items-center gap-2 underline decoration-[#FF9B9B] underline-offset-8">⚔️ 讨伐日记 (工作经历)</h3>
-                      <div className="space-y-8">
-                        {workExperiences.map((exp, idx) => (
-                          <div key={idx} className="relative pl-6 border-l-4 border-[#5C4033]">
-                            <div className="absolute -left-[10px] top-0 w-4 h-4 rounded-full border-2 border-[#5C4033]" style={{ backgroundColor: exp.color }} />
-                            <p className="text-xs font-black opacity-60 mb-1">{exp.date}</p>
-                            <h4 className="text-lg font-black">{exp.company} <span className="block md:inline md:ml-2 text-sm text-[#FF9B9B]">-- {exp.role}</span></h4>
-                            <p className="mt-2 text-sm font-bold leading-relaxed text-justify opacity-90">{exp.content}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </section>
-                  </div>
-                  <div className="lg:col-span-5 space-y-10">
-                    <section>
-                      <h3 className="text-2xl font-black mb-6 flex items-center gap-2">🎓 教育背景</h3>
-                      <div className="space-y-4">
-                        <div className="p-4 border-2 border-[#5C4033] rounded-2xl bg-[#FFF9F2]">
-                          <p className="font-black text-lg">上海师范大学</p>
-                          <p className="text-sm font-bold">社会学 · 学术硕士</p>
-                        </div>
-                        <div className="p-4 border-2 border-[#5C4033] rounded-2xl bg-white">
-                          <p className="font-black text-lg">中南民族大学</p>
-                          <p className="text-sm font-bold">社会学 · 本科</p>
-                        </div>
-                      </div>
-                    </section>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {isJournalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsJournalOpen(false)} className="absolute inset-0 bg-[#5C4033]/40 backdrop-blur-sm" />
-            <motion.div initial={{ scale: 0.9, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.9, y: 20, opacity: 0 }} className="relative w-full max-w-4xl bg-white border-[4px] border-[#5C4033] rounded-[40px] shadow-[15px_15px_0_0_#FFDAE9] p-8 md:p-10 overflow-y-auto max-h-[85vh] custom-scrollbar">
-              <button onClick={() => setIsJournalOpen(false)} className="absolute top-6 right-6 w-10 h-10 border-2 border-[#5C4033] rounded-full flex items-center justify-center font-bold bg-white">✕</button>
-              <h3 className="text-3xl font-black mb-10 italic flex items-center gap-3">⚔️ 讨伐记录</h3>
-              <div className="space-y-12">
-                {workExperiences.map((exp, idx) => (
-                  <div key={idx} className="relative pl-10 border-l-4 border-dashed border-[#FFDAE9]">
-                    <div className="absolute -left-[14px] top-0 w-6 h-6 bg-white border-4 rounded-full" style={{ borderColor: exp.color }} />
-                    <span className="inline-block px-3 py-1 rounded-full text-xs font-black mb-3" style={{ backgroundColor: exp.color + '44' }}>{exp.date}</span>
-                    <h4 className="text-2xl font-black">{exp.company}</h4>
-                    <p className="text-[#FF9B9B] font-bold mb-4">{exp.role}</p>
-                    <p className="text-sm font-bold leading-loose text-justify opacity-80 bg-[#F5F5F5] p-5 rounded-2xl border-2 border-[#5C4033]/5">{exp.content}</p>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {isStrengthOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsStrengthOpen(false)} className="absolute inset-0 bg-[#5C4033]/40 backdrop-blur-sm" />
-            <motion.div initial={{ scale: 0.9, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.9, y: 20, opacity: 0 }} className="relative w-full max-w-2xl bg-white border-[4px] border-[#5C4033] rounded-[40px] shadow-[15px_15px_0_0_#DCF2FF] p-10 overflow-y-auto max-h-[85vh] custom-scrollbar">
-              <button onClick={() => setIsStrengthOpen(false)} className="absolute top-6 right-6 w-10 h-10 border-2 border-[#5C4033] rounded-full flex items-center justify-center font-bold">✕</button>
-              <h3 className="text-3xl font-black mb-8 italic flex items-center gap-3">🍭 藏宝库</h3>
-              <div className="space-y-6">
-                <div className="p-6 bg-[#FFDAE9]/30 rounded-[32px] border-2 border-[#5C4033]/10">
-                   <p className="font-black text-[#FF9B9B] text-lg mb-2 underline decoration-[#5C4033]/10 decoration-4">设计能力</p>
-                   <p className="font-bold text-sm leading-loose opacity-90">独自运营自己的设计账号；精通 PS、PR 等设计软件；掌握各类周边设计的成品输出。</p>
-                </div>
-                <div className="p-6 bg-[#DCF2FF]/30 rounded-[32px] border-2 border-[#5C4033]/10">
-                   <p className="font-black text-[#5C4033] text-lg mb-2 underline decoration-[#5C4033]/10 decoration-4">办公能力</p>
-                   <p className="font-bold text-sm leading-loose opacity-90">英语口语较为流利；熟练掌握 Office 等办公软件。</p>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      <footer className="py-16 text-center opacity-30 text-xs font-black tracking-widest uppercase">© 2025 向雪 RAINCO · (๑´ㅂ`๑)</footer>
-
-      <style dangerouslySetInnerHTML={{ __html: `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>向雪 RAINCO | (๑´ㅂ`๑) わッ！</title>
+    <!-- 依赖库加载 -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 修复：Framer Motion 在 CDN 环境下的全局变量名为 Motion -->
+    <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&display=swap');
+        body { font-family: 'Noto Sans SC', sans-serif; cursor: default; overflow-x: hidden; }
         .custom-scrollbar::-webkit-scrollbar { width: 8px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #FFF9F2; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #FFDAE9; border-radius: 10px; border: 2px solid #FFF9F2; }
-      `}} />
-    </div>
-  );
-};
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-export default App;
+    <script type="text/babel">
+        // 关键修复：从全局 Motion 对象中解构
+        const { useState, useEffect, useRef } = React;
+        const { motion, AnimatePresence, useScroll, useSpring } = Motion; 
+
+        const COLORS = {
+            bg: '#FFF9F2',
+            text: '#5C4033',
+            pink: '#FFDAE9',
+            blue: '#DCF2FF',
+            yellow: '#FFF3AD',
+            accent: '#FF9B9B',
+        };
+
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('Home');
+            const [isAboutOpen, setIsAboutOpen] = useState(false);
+            const [isStrengthOpen, setIsStrengthOpen] = useState(false);
+            const [isJournalOpen, setIsJournalOpen] = useState(false);
+            const [isExploreOpen, setIsExploreOpen] = useState(false);
+            const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+            const [isClicked, setIsClicked] = useState(false);
+            const containerRef = useRef(null);
+
+            const handleMouseMove = (e) => {
+                if (containerRef.current) {
+                    const rect = containerRef.current.getBoundingClientRect();
+                    const x = (e.clientX - rect.left) / rect.width - 0.5;
+                    const y = (e.clientY - rect.top) / rect.height - 0.5;
+                    setMousePos({ x, y });
+                }
+            };
+
+            const handleWasshoi = () => {
+                setIsClicked(true);
+                setTimeout(() => setIsClicked(false), 800);
+            };
+
+            const quotes = [
+                "即使流泪也要努力吃拉面。", "呜哇……又是充满希望的一天！", "ヤ哈！我们要去探险了吗？",
+                "只要有美味的零食，心情就会变好。", "虽然有点辛苦，但还是要加油呀。", "这就是生活中的“わッ”瞬间！",
+                "今天也是超级幸运的小雪球。", "努力过后的烤棉花糖最甜了。", "没关系的，慢慢来也可以。"
+            ];
+            const [quoteIndex, setQuoteIndex] = useState(0);
+
+            const { scrollYProgress } = useScroll();
+            const scaleX = useSpring(scrollYProgress, { stiffness: 100, damping: 30 });
+
+            const workExperiences = [
+                { date: "2025.06 - 至今", company: "重庆悦派对信息科技有限公司", role: "市场调研专员", content: "负责全面市场调研工作，自主搭建并维护竞品对比库看板，系统整合竞品内部动态与外部表现，涵盖 20+关键指标，实现竞品数据可视化追踪。", color: "#FF9B9B" },
+                { date: "2024.03 - 2024.12", company: "ARKEMA(中国)投资有限公司", role: "品牌传播专员", content: "独立策划并统筹 WDCC 设计大会、国际新型肥料展及法领馆四十周年庆典等品牌项目，从创意策划、资源整合到现场执行实现全流程闭环管理。", color: "#FFF3AD" },
+                { date: "2025.01 - 2025.03", company: "IPSOS(中国)投资有限公司", role: "市场调研与用户研究专员", content: "参与了针对连锁餐饮品牌'米村拌饭'的专项调研项目，通过问卷和访谈收集消费者偏好和门店需求数据。", color: "#DCF2FF" },
+                { date: "2023.10 - 2023.12", company: "上海华因极数科技发展有限公司", role: "市场调研与用户研究专员", content: "主要负责 vivo 手机用户调研数据分析。参与调研方案制定，收集用户数据并进行清理预处理。", color: "#FFDAE9" }
+            ];
+
+            return (
+                <div className="min-h-screen relative selection:bg-[#FFB7D5] selection:text-white" style={{ backgroundColor: COLORS.bg, color: COLORS.text }}>
+                    <motion.div className="fixed top-0 left-0 right-0 h-1.5 bg-[#FFDAE9] z-[60] origin-left" style={{ scaleX }} />
+                    
+                    <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-5xl bg-white/80 backdrop-blur-md border-[3px] border-[#5C4033] rounded-full px-8 py-3 flex justify-between items-center shadow-lg">
+                        <div className="text-2xl font-black tracking-tighter">❄.LOG</div>
+                        <div className="flex gap-8 font-bold text-sm items-center">
+                            <a href="#" onClick={() => setActiveTab('Home')} className={`cursor-pointer ${activeTab === 'Home' ? 'text-[#FF9B9B]' : ''}`}>首页</a>
+                            <a onClick={() => setIsJournalOpen(true)} className="cursor-pointer hover:text-[#FF9B9B] transition-colors">讨伐日记</a>
+                            <a onClick={() => setIsStrengthOpen(true)} className="cursor-pointer hover:text-[#FF9B9B] transition-colors">藏宝库</a>
+                            <a onClick={() => setIsAboutOpen(true)} className="cursor-pointer hover:text-[#FF9B9B] transition-colors">关于我</a>
+                        </div>
+                    </nav>
+
+                    <main className="pt-32 pb-20 px-6 max-w-6xl mx-auto relative z-10">
+                        <section className="flex flex-col lg:flex-row items-center gap-12 mb-32">
+                            <div className="flex-1 space-y-6">
+                                <div className="inline-block px-4 py-1 bg-[#FFF3AD] border-2 border-[#5C4033] rounded-full text-xs font-bold uppercase tracking-widest">向雪 RAINCO 的秘密基地</div>
+                                <h1 className="text-5xl md:text-8xl font-black leading-none">又快乐地 <br/><span className="text-[#FF9B9B]">度过了一天</span> !</h1>
+                                <p className="text-lg opacity-80 max-w-lg leading-relaxed">这里是雪球的数字避风港。记录下生活中每一个“わッ”的瞬间。</p>
+                                <div className="flex gap-4 pt-4">
+                                    <button onClick={() => setIsExploreOpen(true)} className="px-8 py-4 bg-[#5C4033] text-white rounded-[24px] font-bold shadow-[6px_6px_0_0_#FFDAE9] hover:scale-105 transition-transform">开始探险 (ヤ哈!)</button>
+                                </div>
+                            </div>
+
+                            {/* --- 三人组动态表情区域 --- */}
+                            <motion.div 
+                                ref={containerRef}
+                                onMouseMove={handleMouseMove}
+                                className="flex-1 relative"
+                            >
+                                <div className="relative w-full aspect-square max-w-[450px] mx-auto bg-gradient-to-b from-[#DCF2FF] to-white rounded-full border-[4px] border-[#5C4033] shadow-[20px_20px_0_0_#FFDAE9] flex flex-col items-center justify-center overflow-hidden">
+                                    <div className="relative w-full h-64 flex items-end justify-center">
+                                        {/* 小八 */}
+                                        <motion.div animate={{ y: [0, -5, 0], rotate: -2 + mousePos.x * 2 }} transition={{ duration: 3.5, repeat: Infinity }} className="w-24 h-24 -mr-4 z-10 origin-bottom">
+                                            <svg viewBox="0 0 100 100">
+                                                <path d="M25 35 Q30 15 45 32" fill="#80BFFF" stroke="#5C4033" strokeWidth="3" />
+                                                <path d="M75 35 Q70 15 55 32" fill="#80BFFF" stroke="#5C4033" strokeWidth="3" />
+                                                <ellipse cx="50" cy="65" rx="42" ry="32" fill="white" stroke="#5C4033" strokeWidth="3" />
+                                                <path d="M15 55 Q50 30 85 55 L85 60 Q50 40 15 60 Z" fill="#80BFFF" />
+                                                <circle cx={38 + mousePos.x * 4} cy={62 + mousePos.y * 4} r="4" fill="#5C4033" />
+                                                <circle cx={62 + mousePos.x * 4} cy={62 + mousePos.y * 4} r="4" fill="#5C4033" />
+                                                <path d="M48 75 Q50 78 52 75" stroke="#5C4033" strokeWidth="2" fill="none" />
+                                            </svg>
+                                        </motion.div>
+                                        {/* 吉伊卡哇 */}
+                                        <motion.div animate={{ y: [0, -8, 0], scale: isClicked ? 1.1 : 1 }} transition={{ duration: 3, repeat: Infinity }} className="w-32 h-32 z-20 origin-bottom">
+                                            <svg viewBox="0 0 100 100">
+                                                <circle cx="28" cy="28" r="10" fill="white" stroke="#5C4033" strokeWidth="3" />
+                                                <circle cx="72" cy="28" r="10" fill="white" stroke="#5C4033" strokeWidth="3" />
+                                                <ellipse cx="50" cy="60" rx="45" ry="38" fill="white" stroke="#5C4033" strokeWidth="3" />
+                                                <circle cx={35 + mousePos.x * 5} cy={58 + mousePos.y * 5} r="5" fill="#5C4033" />
+                                                <circle cx={65 + mousePos.x * 5} cy={58 + mousePos.y * 5} r="5" fill="#5C4033" />
+                                                <path d="M47 70 Q50 73 53 70" stroke="#5C4033" strokeWidth="2" fill="none" />
+                                            </svg>
+                                        </motion.div>
+                                        {/* 乌萨奇 */}
+                                        <motion.div animate={{ y: [0, -6, 0], rotate: 2 + mousePos.x * -2 }} transition={{ duration: 2.8, repeat: Infinity }} className="w-28 h-40 -ml-4 z-10 origin-bottom">
+                                            <svg viewBox="0 0 100 140">
+                                                <path d="M35 50 L30 10 Q40 0 50 15 Z" fill="#FFF3AD" stroke="#5C4033" strokeWidth="3" />
+                                                <path d="M65 50 L70 5 Q80 -5 85 15 Z" fill="#FFF3AD" stroke="#5C4033" strokeWidth="3" />
+                                                <ellipse cx="50" cy="95" rx="42" ry="34" fill="#FFF3AD" stroke="#5C4033" strokeWidth="3" />
+                                                <circle cx={38 + mousePos.x * 4} cy={92 + mousePos.y * 4} r="4" fill="#5C4033" />
+                                                <circle cx={62 + mousePos.x * 4} cy={92 + mousePos.y * 4} r="4" fill="#5C4033" />
+                                                <path d="M48 102 Q50 105 52 102" stroke="#5C4033" strokeWidth="2" fill="none" />
+                                            </svg>
+                                        </motion.div>
+                                    </div>
+                                    <button onClick={handleWasshoi} className="mt-8 px-10 py-2 bg-white border-[3px] border-[#5C4033] rounded-full text-xl font-black shadow-[4px_4px_0_0_#5C4033] hover:bg-[#FFF3AD] transition-colors">わッ！</button>
+                                </div>
+                            </motion.div>
+                        </section>
+
+                        <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                            <motion.div onClick={() => setIsJournalOpen(true)} whileHover={{ y: -5 }} className="md:col-span-2 row-span-2 p-10 bg-white border-[3px] border-[#5C4033] rounded-[48px] shadow-[10px_10px_0_0_#DCF2FF] cursor-pointer">
+                                <h2 className="text-4xl font-black mb-4">讨伐日记</h2>
+                                <p className="opacity-70 font-medium leading-relaxed">这里记录了我所有的职业探险历程，每一段经历都是成长的勋章。</p>
+                                <div className="flex items-center gap-4 mt-8">
+                                    <div className="w-12 h-12 bg-[#FFF3AD] border-2 border-[#5C4033] rounded-full flex items-center justify-center text-xl">⚔️</div>
+                                    <span className="font-bold underline decoration-4 underline-offset-4">查看完整工作经历</span>
+                                </div>
+                            </motion.div>
+                            <div className="md:col-span-2 p-8 bg-[#FFF3AD] border-[3px] border-[#5C4033] rounded-[40px] flex items-center gap-6">
+                                <div className="w-20 h-20 bg-white border-2 border-[#5C4033] rounded-3xl flex items-center justify-center text-4xl">🎒</div>
+                                <div>
+                                    <h3 className="text-xl font-bold">今日状态：( ꩜ ᯅ ꩜ )</h3>
+                                    <p className="text-sm opacity-60 font-bold">正在整理藏宝库...</p>
+                                </div>
+                            </div>
+                            <div onClick={() => setIsStrengthOpen(true)} className="p-8 bg-[#E0F2FF] border-[3px] border-[#5C4033] rounded-[40px] cursor-pointer hover:scale-105 transition-transform">
+                                <h3 className="text-xl font-bold mb-4">技能藏宝库 ✨</h3>
+                                <p className="text-sm opacity-60 leading-relaxed">点此查看雪球的各种秘密技能和设计工具包。</p>
+                            </div>
+                            <div className="p-8 bg-[#FFDAE9] border-[3px] border-[#5C4033] rounded-[40px] flex items-center justify-center text-5xl">🍭</div>
+                        </section>
+                    </main>
+
+                    {/* --- 弹窗组件集合 --- */}
+                    <AnimatePresence>
+                        {/* 关于我 */}
+                        {isAboutOpen && (
+                            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setIsAboutOpen(false)}>
+                                <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white p-8 md:p-12 rounded-[40px] max-w-5xl w-full border-4 border-[#5C4033] shadow-2xl overflow-y-auto max-h-[90vh] custom-scrollbar" onClick={e => e.stopPropagation()}>
+                                    <div className="flex justify-between items-start mb-8">
+                                        <h2 className="text-5xl font-black italic">向 雪 <span className="text-xl font-normal opacity-40 ml-4">RAINCO</span></h2>
+                                        <button onClick={() => setIsAboutOpen(false)} className="w-10 h-10 border-2 border-[#5C4033] rounded-full flex items-center justify-center font-bold">✕</button>
+                                    </div>
+                                    <div className="grid md:grid-cols-2 gap-12">
+                                        <div className="space-y-6">
+                                            <div className="space-y-2">
+                                                <p className="font-black text-[#FF9B9B] uppercase tracking-widest text-sm">Background</p>
+                                                <p className="font-bold text-lg leading-relaxed">社会学硕士 · 擅长市场调研与用户研究。拥有 2 年品牌传播与策划经验，能精准洞察用户需求并转化为创意方案。</p>
+                                            </div>
+                                            <div className="p-6 bg-[#FFF9F2] border-2 border-[#5C4033] rounded-3xl space-y-3">
+                                                <p className="font-bold">🎂 2000.12.10</p>
+                                                <p className="font-bold">🏠 重庆市渝北区</p>
+                                                <p className="font-bold">📧 2292976290@qq.com</p>
+                                                <p className="font-bold">📞 17763024154</p>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-6">
+                                            <p className="font-black text-[#FF9B9B] uppercase tracking-widest text-sm">Education</p>
+                                            <div className="space-y-4">
+                                                <div className="flex justify-between items-center p-4 border-2 border-[#5C4033] rounded-2xl bg-[#DCF2FF]">
+                                                    <span className="font-black text-lg">上海师范大学</span>
+                                                    <span className="text-sm font-bold opacity-60">社会学 · 硕士</span>
+                                                </div>
+                                                <div className="flex justify-between items-center p-4 border-2 border-[#5C4033] rounded-2xl">
+                                                    <span className="font-black text-lg">中南民族大学</span>
+                                                    <span className="text-sm font-bold opacity-60">社会学 · 本科</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            </div>
+                        )}
+
+                        {/* 讨伐日记 (工作经历) */}
+                        {isJournalOpen && (
+                            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setIsJournalOpen(false)}>
+                                <motion.div initial={{ x: 100, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 100, opacity: 0 }} className="bg-white p-8 md:p-12 rounded-[40px] max-w-4xl w-full border-4 border-[#5C4033] shadow-2xl overflow-y-auto max-h-[85vh] custom-scrollbar" onClick={e => e.stopPropagation()}>
+                                    <div className="flex justify-between items-center mb-10">
+                                        <h3 className="text-3xl font-black italic">⚔️ 讨伐记录</h3>
+                                        <button onClick={() => setIsJournalOpen(false)} className="w-10 h-10 border-2 border-[#5C4033] rounded-full flex items-center justify-center font-bold">✕</button>
+                                    </div>
+                                    <div className="space-y-10">
+                                        {workExperiences.map((exp, idx) => (
+                                            <div key={idx} className="relative pl-10 border-l-4 border-dashed border-[#FFDAE9]">
+                                                <div className="absolute -left-[14px] top-0 w-6 h-6 bg-white border-4 rounded-full" style={{ borderColor: exp.color }} />
+                                                <span className="inline-block px-3 py-1 rounded-full text-xs font-black mb-3" style={{ backgroundColor: exp.color + '44' }}>{exp.date}</span>
+                                                <h4 className="text-2xl font-black">{exp.company}</h4>
+                                                <p className="text-[#FF9B9B] font-bold mb-4">{exp.role}</p>
+                                                <p className="text-sm font-bold leading-loose text-justify opacity-80 bg-[#F5F5F5] p-5 rounded-2xl border-2 border-[#5C4033]/5">{exp.content}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </motion.div>
+                            </div>
+                        )}
+
+                        {/* 藏宝库 */}
+                        {isStrengthOpen && (
+                            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setIsStrengthOpen(false)}>
+                                <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white p-10 rounded-[40px] max-w-2xl w-full border-4 border-[#5C4033] shadow-2xl" onClick={e => e.stopPropagation()}>
+                                    <div className="flex justify-between items-center mb-8">
+                                        <h3 className="text-3xl font-black italic">🍭 技能藏宝库</h3>
+                                        <button onClick={() => setIsStrengthOpen(false)} className="w-10 h-10 border-2 border-[#5C4033] rounded-full flex items-center justify-center font-bold">✕</button>
+                                    </div>
+                                    <div className="space-y-6">
+                                        <div className="p-6 bg-[#FFDAE9]/30 rounded-[32px] border-2 border-[#5C4033]/10">
+                                            <p className="font-black text-[#FF9B9B] text-lg mb-2 underline decoration-[#5C4033]/10 decoration-4">设计能力</p>
+                                            <p className="font-bold text-sm leading-loose opacity-90">独自运营个人设计账号；精通 PS、PR 等设计软件；掌握各类周边设计的成品输出。</p>
+                                        </div>
+                                        <div className="p-6 bg-[#DCF2FF]/30 rounded-[32px] border-2 border-[#5C4033]/10">
+                                            <p className="font-black text-[#5C4033] text-lg mb-2 underline decoration-[#5C4033]/10 decoration-4">核心软实力</p>
+                                            <p className="font-bold text-sm leading-loose opacity-90">英语口语流利；精通 Office 办公全家桶；极强的市场趋势嗅觉与用户心理洞察力。</p>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            </div>
+                        )}
+                    </AnimatePresence>
+
+                    <footer className="py-20 text-center opacity-30 text-xs font-black tracking-widest uppercase">© 2025 向雪 RAINCO · (๑´ㅂ`๑)</footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
