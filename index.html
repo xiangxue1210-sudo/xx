@@ -9,23 +9,61 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 修复：Framer Motion 在 CDN 环境下的全局变量名为 Motion -->
     <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&display=swap');
-        body { font-family: 'Noto Sans SC', sans-serif; cursor: default; overflow-x: hidden; }
+        body { 
+            font-family: 'Noto Sans SC', sans-serif; 
+            cursor: default; 
+            overflow-x: hidden;
+            background-color: #FFF9F2;
+            background-image: radial-gradient(#FFDAE9 1.5px, transparent 1.5px);
+            background-size: 40px 40px;
+            background-attachment: fixed;
+            margin: 0;
+        }
+        
         .custom-scrollbar::-webkit-scrollbar { width: 8px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #FFF9F2; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #FFDAE9; border-radius: 10px; border: 2px solid #FFF9F2; }
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        
+        #snow-canvas, #firework-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        #snow-canvas { z-index: 5; }
+        #firework-canvas { z-index: 200; } 
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(4px);
+        }
+
+        /* 游戏专属样式 */
+        #game-container {
+            width: 100%;
+            height: 440px;
+            background: linear-gradient(to bottom, #DCF2FF 0%, #FFFFFF 100%);
+            border: 4px solid #5C4033;
+            border-radius: 32px;
+            position: relative;
+            overflow: hidden;
+            touch-action: none;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.05);
+        }
     </style>
 </head>
 <body>
+    <canvas id="snow-canvas"></canvas>
+    <canvas id="firework-canvas"></canvas>
     <div id="root"></div>
 
     <script type="text/babel">
-        // 关键修复：从全局 Motion 对象中解构
-        const { useState, useEffect, useRef } = React;
+        const { useState, useEffect, useRef, useCallback } = React;
         const { motion, AnimatePresence, useScroll, useSpring } = Motion; 
 
         const COLORS = {
@@ -37,14 +75,549 @@
             accent: '#FF9B9B',
         };
 
+        // --- 烟花粒子系统 ---
+        const Fireworks = ({ trigger }) => {
+            const particles = useRef([]);
+            const requestRef = useRef();
+            const colors = ['#FFDAE9', '#DCF2FF', '#FFF3AD', '#FF9B9B', '#B5EAD7'];
+
+            const createParticles = (x, y) => {
+                for (let i = 0; i < 35; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * 6 + 2;
+                    particles.current.push({
+                        x, y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        size: Math.random() * 3 + 2,
+                        color: colors[Math.floor(Math.random() * colors.length)],
+                        alpha: 1,
+                        decay: Math.random() * 0.015 + 0.015
+                    });
+                }
+            };
+
+            useEffect(() => {
+                const canvas = document.getElementById('firework-canvas');
+                const ctx = canvas.getContext('2d');
+                let width, height;
+
+                const resize = () => {
+                    width = canvas.width = window.innerWidth;
+                    height = canvas.height = window.innerHeight;
+                };
+
+                const update = () => {
+                    ctx.clearRect(0, 0, width, height);
+                    particles.current.forEach((p, i) => {
+                        p.vx *= 0.98;
+                        p.vy *= 0.98;
+                        p.vy += 0.12;
+                        p.x += p.vx;
+                        p.y += p.vy;
+                        p.alpha -= p.decay;
+
+                        if (p.alpha <= 0) {
+                            particles.current.splice(i, 1);
+                        } else {
+                            ctx.globalAlpha = p.alpha;
+                            ctx.fillStyle = p.color;
+                            ctx.beginPath();
+                            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    });
+                    ctx.globalAlpha = 1;
+                    requestRef.current = requestAnimationFrame(update);
+                };
+
+                window.addEventListener('resize', resize);
+                resize();
+                requestRef.current = requestAnimationFrame(update);
+
+                return () => {
+                    window.removeEventListener('resize', resize);
+                    cancelAnimationFrame(requestRef.current);
+                };
+            }, []);
+
+            useEffect(() => {
+                if (trigger.count > 0) {
+                    createParticles(trigger.x, trigger.y);
+                }
+            }, [trigger]);
+
+            return null;
+        };
+
+        // --- 落雪系统 ---
+        const Snowfall = ({ triggerBurst }) => {
+            const snowflakes = useRef([]);
+            const requestRef = useRef();
+
+            const createSnowflake = useCallback((width, height, isBurst = false) => {
+                return {
+                    x: Math.random() * width,
+                    y: isBurst ? Math.random() * -height : Math.random() * height - height,
+                    size: Math.random() * 3 + (isBurst ? 2 : 1),
+                    speed: Math.random() * 1 + (isBurst ? 2 : 0.5),
+                    velY: Math.random() * 1 + (isBurst ? 2 : 0.5),
+                    velX: 0,
+                    stepSize: Math.random() / 30,
+                    step: 0,
+                    opacity: Math.random() * 0.5 + 0.2,
+                    isBurst
+                };
+            }, []);
+
+            useEffect(() => {
+                const canvas = document.getElementById('snow-canvas');
+                const ctx = canvas.getContext('2d');
+                let width, height;
+
+                const resize = () => {
+                    width = canvas.width = window.innerWidth;
+                    height = canvas.height = window.innerHeight;
+                };
+
+                const update = () => {
+                    ctx.clearRect(0, 0, width, height);
+                    snowflakes.current.forEach((s, i) => {
+                        s.step += s.stepSize;
+                        s.velX = Math.cos(s.step);
+                        s.y += s.velY;
+                        s.x += s.velX;
+
+                        if (s.y > height) {
+                            if (s.isBurst) {
+                                snowflakes.current.splice(i, 1);
+                            } else {
+                                Object.assign(s, createSnowflake(width, height));
+                                s.y = -10;
+                            }
+                        }
+
+                        ctx.fillStyle = `rgba(255, 255, 255, ${s.opacity})`;
+                        ctx.beginPath();
+                        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+                        ctx.fill();
+                    });
+                    requestRef.current = requestAnimationFrame(update);
+                };
+
+                window.addEventListener('resize', resize);
+                resize();
+                
+                const count = Math.floor(width / 15);
+                for (let i = 0; i < count; i++) {
+                    snowflakes.current.push(createSnowflake(width, height));
+                }
+
+                requestRef.current = requestAnimationFrame(update);
+                return () => {
+                    window.removeEventListener('resize', resize);
+                    cancelAnimationFrame(requestRef.current);
+                };
+            }, [createSnowflake]);
+
+            useEffect(() => {
+                if (triggerBurst > 0) {
+                    const width = window.innerWidth;
+                    const height = window.innerHeight;
+                    for (let i = 0; i < 50; i++) {
+                        snowflakes.current.push(createSnowflake(width, height, true));
+                    }
+                }
+            }, [triggerBurst, createSnowflake]);
+
+            return null;
+        };
+
+        // --- 吉伊卡哇冒险 2.0 (增强版) ---
+        const ChiikawaGame = ({ onClose }) => {
+            const canvasRef = useRef(null);
+            const [gameState, setGameState] = useState('playing'); 
+            const [score, setScore] = useState(0);
+            const [stars, setStars] = useState(0);
+            
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                let animationId;
+                let frame = 0;
+
+                const gravity = 0.6;
+                const levelWidth = 2400; 
+                const camera = { x: 0 };
+                
+                const player = {
+                    x: 100, y: 200, width: 45, height: 45,
+                    speed: 6.5, velX: 0, velY: 0,
+                    jumping: false, 
+                    jumpCount: 0, // 二段跳计数
+                    grounded: false, facing: 'right',
+                    isPanicking: false // 惊恐脸状态
+                };
+
+                const keys = {};
+                const particles = [];
+
+                // 增加打击反馈粒子
+                const spawnHitParticles = (x, y) => {
+                    for(let i=0; i<8; i++) {
+                        particles.push({
+                            x, y,
+                            vx: (Math.random() - 0.5) * 6,
+                            vy: (Math.random() - 0.5) * 6,
+                            size: Math.random() * 4 + 2,
+                            color: ['#FFDAE9', '#FFF3AD', '#DCF2FF'][Math.floor(Math.random()*3)],
+                            life: 1.0
+                        });
+                    }
+                };
+
+                const platforms = [
+                    { x: 0, y: 380, width: 600, height: 60, type: 'normal' }, 
+                    { x: 750, y: 380, width: 800, height: 60, type: 'normal' },
+                    { x: 1700, y: 380, width: 700, height: 60, type: 'normal' },
+                    { x: 250, y: 280, width: 120, height: 25, type: 'normal' },
+                    { x: 450, y: 180, width: 120, height: 25, type: 'normal' },
+                    { x: 900, y: 260, width: 120, height: 25, type: 'normal' },
+                    { x: 1100, y: 160, width: 150, height: 25, type: 'normal' },
+                    { x: 1400, y: 240, width: 120, height: 25, type: 'normal' },
+                    // 动态移动平台
+                    { x: 1650, y: 150, width: 120, height: 20, type: 'moving', startY: 150, range: 100 },
+                    { x: 1850, y: 280, width: 200, height: 25, type: 'normal' },
+                ];
+
+                const items = [
+                    { x: 300, y: 240, width: 20, height: 20, collected: false },
+                    { x: 500, y: 140, width: 20, height: 20, collected: false },
+                    { x: 950, y: 220, width: 20, height: 20, collected: false },
+                    { x: 1150, y: 120, width: 20, height: 20, collected: false },
+                    { x: 1450, y: 200, width: 20, height: 20, collected: false },
+                    { x: 1950, y: 240, width: 20, height: 20, collected: false },
+                ];
+
+                const enemies = [
+                    { x: 400, y: 345, width: 35, height: 35, type: 'beetle', speed: 2.2, range: 150, startX: 400, dead: false },
+                    { x: 1000, y: 345, width: 35, height: 35, type: 'beetle', speed: 3.5, range: 200, startX: 1000, dead: false },
+                    { x: 800, y: 150, width: 40, height: 40, type: 'momonga', speed: 0.05, angle: 0, range: 100, startX: 800, startY: 150, dead: false },
+                    { x: 1600, y: 100, width: 40, height: 40, type: 'momonga', speed: 0.04, angle: Math.PI, range: 150, startX: 1600, startY: 100, dead: false },
+                ];
+
+                const handleKeyDown = (e) => {
+                    if ((e.code === 'Space' || e.code === 'ArrowUp') && player.jumpCount < 2) {
+                        player.velY = -12;
+                        player.jumping = true;
+                        player.grounded = false;
+                        player.jumpCount++;
+                        spawnHitParticles(player.x + 22, player.y + 40);
+                    }
+                    keys[e.code] = true;
+                };
+                const handleKeyUp = (e) => keys[e.code] = false;
+                window.addEventListener('keydown', handleKeyDown);
+                window.addEventListener('keyup', handleKeyUp);
+
+                const update = () => {
+                    if (gameState !== 'playing') return;
+                    frame++;
+
+                    // 角色控制
+                    if (keys['ArrowLeft']) { player.velX = -player.speed; player.facing = 'left'; }
+                    else if (keys['ArrowRight']) { player.velX = player.speed; player.facing = 'right'; }
+                    else player.velX = 0;
+
+                    player.velY += gravity;
+                    player.x += player.velX;
+                    player.y += player.velY;
+
+                    // 摄像机跟随 (带点平滑)
+                    const targetCamX = player.x - canvas.width / 3;
+                    camera.x += (targetCamX - camera.x) * 0.1;
+                    if (camera.x < 0) camera.x = 0;
+                    if (camera.x > levelWidth - canvas.width) camera.x = levelWidth - canvas.width;
+
+                    // 边界处理
+                    if (player.x < 0) player.x = 0;
+
+                    // 惊恐脸判定：如果脚下空空且正在下落
+                    player.isPanicking = !player.grounded && player.velY > 3;
+
+                    // 平台碰撞与移动
+                    player.grounded = false;
+                    platforms.forEach(p => {
+                        if (p.type === 'moving') {
+                            p.y = p.startY + Math.sin(frame * 0.04) * p.range;
+                        }
+
+                        if (player.x < p.x + p.width && player.x + player.width > p.x &&
+                            player.y < p.y + p.height && player.y + player.height > p.y) {
+                            if (player.velY > 0 && player.y + player.height - player.velY <= p.y + 12) {
+                                player.y = p.y - player.height;
+                                player.velY = 0;
+                                player.jumping = false;
+                                player.grounded = true;
+                                player.jumpCount = 0;
+                                // 如果在移动平台上，跟随移动
+                                if (p.type === 'moving') {
+                                    player.y = p.y - player.height;
+                                }
+                            }
+                        }
+                    });
+
+                    // 物品收集
+                    items.forEach(item => {
+                        if (!item.collected && player.x < item.x + item.width && player.x + player.width > item.x &&
+                            player.y < item.y + item.height && player.y + player.height > item.y) {
+                            item.collected = true;
+                            spawnHitParticles(item.x + 10, item.y + 10);
+                            setScore(s => s + 100);
+                            setStars(s => s + 1);
+                        }
+                    });
+
+                    // 敌人AI
+                    enemies.forEach(en => {
+                        if (en.dead) return;
+                        
+                        if (en.type === 'beetle') {
+                            en.x += en.speed;
+                            if (Math.abs(en.x - en.startX) > en.range) en.speed *= -1;
+                        } else {
+                            en.angle += en.speed;
+                            en.x = en.startX + Math.cos(en.angle) * en.range;
+                            en.y = en.startY + Math.sin(en.angle * 2) * 40;
+                        }
+
+                        if (player.x < en.x + en.width && player.x + player.width > en.x &&
+                            player.y < en.y + en.height && player.y + player.height > en.y) {
+                            // 踩踏判定：头部打击
+                            if (player.velY > 0 && player.y + player.height - player.velY <= en.y + 15) {
+                                en.dead = true;
+                                player.velY = -12; // 踩踏反弹
+                                player.jumpCount = 1; // 重置二段跳机会
+                                spawnHitParticles(en.x + 20, en.y);
+                                setScore(s => s + 200);
+                            } else {
+                                setGameState('lost');
+                            }
+                        }
+                    });
+
+                    // 更新粒子
+                    for(let i=particles.length-1; i>=0; i--) {
+                        particles[i].x += particles[i].vx;
+                        particles[i].y += particles[i].vy;
+                        particles[i].life -= 0.02;
+                        if(particles[i].life <= 0) particles.splice(i, 1);
+                    }
+
+                    // 胜负判断
+                    if (player.y > canvas.height + 100) setGameState('lost');
+                    if (player.x > levelWidth - 100 && stars >= 6) setGameState('won');
+
+                    draw();
+                    animationId = requestAnimationFrame(update);
+                };
+
+                const draw = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    // 1. 视差背景 - 云朵
+                    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+                    for(let i=0; i<6; i++) {
+                        const cx = (i * 500 - camera.x * 0.3) % (levelWidth + 500);
+                        ctx.beginPath();
+                        ctx.arc(cx + 50, 60, 25, 0, Math.PI*2);
+                        ctx.arc(cx + 85, 60, 35, 0, Math.PI*2);
+                        ctx.arc(cx + 120, 60, 25, 0, Math.PI*2);
+                        ctx.fill();
+                    }
+
+                    ctx.save();
+                    ctx.translate(-camera.x, 0);
+
+                    // 2. 画平台
+                    platforms.forEach(p => {
+                        ctx.fillStyle = p.type === 'moving' ? '#B5836D' : '#5C4033';
+                        ctx.beginPath();
+                        ctx.roundRect(p.x, p.y, p.width, p.height, 12);
+                        ctx.fill();
+                        ctx.fillStyle = p.type === 'moving' ? '#FFF3AD' : '#FFDAE9';
+                        ctx.fillRect(p.x, p.y, p.width, 8);
+                    });
+
+                    // 3. 粒子系统
+                    particles.forEach(p => {
+                        ctx.globalAlpha = p.life;
+                        ctx.fillStyle = p.color;
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+                        ctx.fill();
+                    });
+                    ctx.globalAlpha = 1;
+
+                    // 4. 终点
+                    ctx.fillStyle = '#5C4033'; ctx.fillRect(levelWidth - 80, 200, 8, 180);
+                    ctx.fillStyle = stars >= 6 ? '#FF9B9B' : '#CCC';
+                    ctx.beginPath();
+                    ctx.moveTo(levelWidth-72, 200); ctx.lineTo(levelWidth-20, 225); ctx.lineTo(levelWidth-72, 250);
+                    ctx.fill();
+
+                    // 5. 画吉伊卡哇 (精进表情)
+                    ctx.save();
+                    const walkCycle = (player.velX !== 0 && player.grounded) ? Math.sin(frame * 0.2) * 4 : 0;
+                    ctx.translate(player.x, player.y + walkCycle);
+                    if (player.facing === 'left') { ctx.translate(player.width, 0); ctx.scale(-1, 1); }
+                    
+                    // 身体
+                    ctx.fillStyle = 'white'; ctx.strokeStyle = '#5C4033'; ctx.lineWidth = 3;
+                    ctx.beginPath(); ctx.ellipse(22, 22, 20, 18, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+                    // 耳朵
+                    ctx.beginPath(); ctx.arc(10, 12, 8, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(34, 12, 8, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+                    
+                    // 精进表情
+                    ctx.fillStyle = '#5C4033';
+                    if (player.isPanicking) {
+                        // 惊恐脸 (ᯅ̈)
+                        ctx.lineWidth = 2;
+                        ctx.beginPath(); ctx.arc(16, 22, 3, 0, Math.PI*2); ctx.stroke();
+                        ctx.beginPath(); ctx.arc(28, 22, 3, 0, Math.PI*2); ctx.stroke();
+                        ctx.beginPath(); ctx.arc(22, 30, 4, 0, Math.PI*2); ctx.stroke();
+                    } else if (player.jumping) {
+                        // 跳跃眯眼
+                        ctx.lineWidth = 2;
+                        ctx.beginPath(); ctx.moveTo(14, 23); ctx.lineTo(19, 21); ctx.stroke();
+                        ctx.beginPath(); ctx.moveTo(25, 21); ctx.lineTo(30, 23); ctx.stroke();
+                    } else {
+                        // 正常呆萌眼
+                        ctx.beginPath(); ctx.arc(16, 22, 2.5, 0, Math.PI*2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(28, 22, 2.5, 0, Math.PI*2); ctx.fill();
+                    }
+                    // 腮红
+                    ctx.fillStyle = '#FFDAE9'; ctx.beginPath(); ctx.arc(10, 28, 4, 0, Math.PI*2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(34, 28, 4, 0, Math.PI*2); ctx.fill();
+                    ctx.restore();
+
+                    // 6. 物品
+                    items.forEach(item => {
+                        if (!item.collected) {
+                            ctx.fillStyle = '#FFF3AD';
+                            const floatY = Math.sin(frame * 0.1) * 6;
+                            ctx.beginPath();
+                            ctx.arc(item.x + 10, item.y + 10 + floatY, 10, 0, Math.PI*2);
+                            ctx.fill();
+                            ctx.strokeStyle = '#5C4033'; ctx.stroke();
+                        }
+                    });
+
+                    // 7. 敌人
+                    enemies.forEach(en => {
+                        if (en.dead) return;
+                        if (en.type === 'beetle') {
+                            ctx.fillStyle = '#FF9B9B';
+                            ctx.beginPath(); ctx.roundRect(en.x, en.y, en.width, en.height, 8); ctx.fill();
+                            ctx.strokeStyle = '#5C4033'; ctx.stroke();
+                            ctx.fillStyle = 'white'; ctx.fillRect(en.x + 8, en.y + 8, 6, 6); ctx.fillRect(en.x + 22, en.y + 8, 6, 6);
+                        } else {
+                            ctx.fillStyle = '#DCF2FF';
+                            ctx.beginPath(); ctx.ellipse(en.x + 20, en.y + 20, 20, 18, 0, 0, Math.PI*2); ctx.fill();
+                            ctx.strokeStyle = '#5C4033'; ctx.stroke();
+                            ctx.beginPath(); ctx.arc(en.x + 5, en.y + 30, 10, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+                            ctx.fillStyle = '#5C4033'; ctx.beginPath(); ctx.arc(en.x + 28, en.y + 18, 3, 0, Math.PI*2); ctx.fill();
+                        }
+                    });
+
+                    ctx.restore();
+                };
+
+                update();
+                return () => {
+                    window.removeEventListener('keydown', handleKeyDown);
+                    window.removeEventListener('keyup', handleKeyUp);
+                    cancelAnimationFrame(animationId);
+                };
+            }, [gameState, stars]);
+
+            return (
+                <div className="flex flex-col items-center">
+                    <div className="flex justify-between w-full mb-6 px-4">
+                        <div className="flex flex-col">
+                            <span className="text-3xl font-black italic text-[#5C4033]">SCORE: {score}</span>
+                            <span className="text-sm font-bold opacity-50">空格/上方向键可 二段跳 噢！</span>
+                        </div>
+                        <div className="flex gap-4 items-center">
+                            <div className="flex gap-1">
+                                {[...Array(6)].map((_, i) => (
+                                    <span key={i} className={`text-2xl ${i < stars ? 'grayscale-0' : 'grayscale opacity-30'}`}>⭐</span>
+                                ))}
+                            </div>
+                            <button onClick={onClose} className="px-6 py-2 bg-white border-4 border-[#5C4033] rounded-2xl font-black hover:bg-[#FFDAE9] transition-colors">退出</button>
+                        </div>
+                    </div>
+                    
+                    <div id="game-container">
+                        <canvas ref={canvasRef} width={850} height={440} className="w-full h-full cursor-crosshair" />
+                        
+                        <AnimatePresence>
+                            {gameState !== 'playing' && (
+                                <motion.div 
+                                    initial={{ opacity: 0, scale: 0.8 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    className="absolute inset-0 bg-white/90 backdrop-blur-md flex flex-col items-center justify-center z-50 p-10 text-center"
+                                >
+                                    <h2 className="text-7xl font-black mb-4 italic text-[#5C4033]">
+                                        {gameState === 'won' ? 'ヤハ! 胜利通关' : '呜呜... 失败了'}
+                                    </h2>
+                                    <p className="text-2xl font-bold mb-10 opacity-70">
+                                        {gameState === 'won' ? '你成功集齐了所有星星并抵达终点！' : '不要气馁，吉伊卡哇会继续努力的！'}
+                                    </p>
+                                    <div className="flex gap-6">
+                                        <button 
+                                            onClick={() => { setScore(0); setStars(0); setGameState('playing'); }}
+                                            className="px-12 py-5 bg-[#5C4033] text-white rounded-[24px] font-black text-xl shadow-[6px_6px_0_0_#FFDAE9] hover:scale-105 transition-transform"
+                                        >
+                                            再玩一次
+                                        </button>
+                                        <button onClick={onClose} className="px-12 py-5 bg-white border-4 border-[#5C4033] rounded-[24px] font-black text-xl">返回主页</button>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+
+                    <div className="mt-8 flex flex-wrap justify-center gap-8 items-center opacity-60 font-bold">
+                        <div className="flex items-center gap-3">
+                            <span className="w-8 h-8 flex items-center justify-center bg-white border-2 border-[#5C4033] rounded">←</span>
+                            <span className="w-8 h-8 flex items-center justify-center bg-white border-2 border-[#5C4033] rounded">→</span>
+                            <span>移动</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <span className="px-4 h-8 flex items-center justify-center bg-[#FFDAE9] border-2 border-[#5C4033] rounded">SPACE / ↑</span>
+                            <span>二段跳</span>
+                        </div>
+                        <div className="flex items-center gap-3 italic">
+                            <span className="text-[#FF9B9B]">特性:</span>
+                            <span>视差背景、踩踏反弹、表情包反馈！</span>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         const App = () => {
-            const [activeTab, setActiveTab] = useState('Home');
             const [isAboutOpen, setIsAboutOpen] = useState(false);
             const [isStrengthOpen, setIsStrengthOpen] = useState(false);
             const [isJournalOpen, setIsJournalOpen] = useState(false);
             const [isExploreOpen, setIsExploreOpen] = useState(false);
             const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
             const [isClicked, setIsClicked] = useState(false);
+            const [snowBurst, setSnowBurst] = useState(0);
+            const [fireworkTrigger, setFireworkTrigger] = useState({ count: 0, x: 0, y: 0 });
             const containerRef = useRef(null);
 
             const handleMouseMove = (e) => {
@@ -56,17 +629,19 @@
                 }
             };
 
-            const handleWasshoi = () => {
+            const handleWasshoi = (e) => {
                 setIsClicked(true);
+                setFireworkTrigger(prev => ({
+                    count: prev.count + 1,
+                    x: e.clientX,
+                    y: e.clientY
+                }));
                 setTimeout(() => setIsClicked(false), 800);
             };
 
-            const quotes = [
-                "即使流泪也要努力吃拉面。", "呜哇……又是充满希望的一天！", "ヤ哈！我们要去探险了吗？",
-                "只要有美味的零食，心情就会变好。", "虽然有点辛苦，但还是要加油呀。", "这就是生活中的“わッ”瞬间！",
-                "今天也是超级幸运的小雪球。", "努力过后的烤棉花糖最甜了。", "没关系的，慢慢来也可以。"
-            ];
-            const [quoteIndex, setQuoteIndex] = useState(0);
+            const triggerSnow = () => {
+                setSnowBurst(prev => prev + 1);
+            };
 
             const { scrollYProgress } = useScroll();
             const scaleX = useSpring(scrollYProgress, { stiffness: 100, damping: 30 });
@@ -79,107 +654,148 @@
             ];
 
             return (
-                <div className="min-h-screen relative selection:bg-[#FFB7D5] selection:text-white" style={{ backgroundColor: COLORS.bg, color: COLORS.text }}>
-                    <motion.div className="fixed top-0 left-0 right-0 h-1.5 bg-[#FFDAE9] z-[60] origin-left" style={{ scaleX }} />
+                <div className="min-h-screen relative selection:bg-[#FFB7D5] selection:text-white pb-10" style={{ color: COLORS.text }}>
+                    <Snowfall triggerBurst={snowBurst} />
+                    <Fireworks trigger={fireworkTrigger} />
                     
-                    <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-5xl bg-white/80 backdrop-blur-md border-[3px] border-[#5C4033] rounded-full px-8 py-3 flex justify-between items-center shadow-lg">
-                        <div className="text-2xl font-black tracking-tighter">❄.LOG</div>
+                    <motion.div className="fixed top-0 left-0 right-0 h-1.5 bg-[#FFDAE9] z-[210] origin-left" style={{ scaleX }} />
+                    
+                    <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-[150] w-[90%] max-w-5xl bg-white/80 backdrop-blur-md border-[3px] border-[#5C4033] rounded-full px-8 py-3 flex justify-between items-center shadow-lg">
+                        <motion.div 
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={triggerSnow}
+                            className="text-2xl font-black tracking-tighter flex items-center gap-2 cursor-pointer select-none group"
+                        >
+                           <motion.span 
+                             animate={snowBurst > 0 ? { rotate: snowBurst * 360 } : {}}
+                             transition={{ type: "spring", stiffness: 200 }}
+                             className="text-[#DCF2FF] group-hover:text-[#FF9B9B] transition-colors"
+                           >
+                             ❄
+                           </motion.span>
+                           <span>.LOG</span>
+                        </motion.div>
                         <div className="flex gap-8 font-bold text-sm items-center">
-                            <a href="#" onClick={() => setActiveTab('Home')} className={`cursor-pointer ${activeTab === 'Home' ? 'text-[#FF9B9B]' : ''}`}>首页</a>
+                            <a href="#" onClick={() => setIsExploreOpen(false)} className="hover:text-[#FF9B9B] transition-colors">首页</a>
                             <a onClick={() => setIsJournalOpen(true)} className="cursor-pointer hover:text-[#FF9B9B] transition-colors">讨伐日记</a>
                             <a onClick={() => setIsStrengthOpen(true)} className="cursor-pointer hover:text-[#FF9B9B] transition-colors">藏宝库</a>
                             <a onClick={() => setIsAboutOpen(true)} className="cursor-pointer hover:text-[#FF9B9B] transition-colors">关于我</a>
                         </div>
                     </nav>
 
-                    <main className="pt-32 pb-20 px-6 max-w-6xl mx-auto relative z-10">
-                        <section className="flex flex-col lg:flex-row items-center gap-12 mb-32">
-                            <div className="flex-1 space-y-6">
-                                <div className="inline-block px-4 py-1 bg-[#FFF3AD] border-2 border-[#5C4033] rounded-full text-xs font-bold uppercase tracking-widest">向雪 RAINCO 的秘密基地</div>
-                                <h1 className="text-5xl md:text-8xl font-black leading-none">又快乐地 <br/><span className="text-[#FF9B9B]">度过了一天</span> !</h1>
-                                <p className="text-lg opacity-80 max-w-lg leading-relaxed">这里是雪球的数字避风港。记录下生活中每一个“わッ”的瞬间。</p>
-                                <div className="flex gap-4 pt-4">
-                                    <button onClick={() => setIsExploreOpen(true)} className="px-8 py-4 bg-[#5C4033] text-white rounded-[24px] font-bold shadow-[6px_6px_0_0_#FFDAE9] hover:scale-105 transition-transform">开始探险 (ヤ哈!)</button>
-                                </div>
-                            </div>
-
-                            {/* --- 三人组动态表情区域 --- */}
-                            <motion.div 
-                                ref={containerRef}
-                                onMouseMove={handleMouseMove}
-                                className="flex-1 relative"
-                            >
-                                <div className="relative w-full aspect-square max-w-[450px] mx-auto bg-gradient-to-b from-[#DCF2FF] to-white rounded-full border-[4px] border-[#5C4033] shadow-[20px_20px_0_0_#FFDAE9] flex flex-col items-center justify-center overflow-hidden">
-                                    <div className="relative w-full h-64 flex items-end justify-center">
-                                        {/* 小八 */}
-                                        <motion.div animate={{ y: [0, -5, 0], rotate: -2 + mousePos.x * 2 }} transition={{ duration: 3.5, repeat: Infinity }} className="w-24 h-24 -mr-4 z-10 origin-bottom">
-                                            <svg viewBox="0 0 100 100">
-                                                <path d="M25 35 Q30 15 45 32" fill="#80BFFF" stroke="#5C4033" strokeWidth="3" />
-                                                <path d="M75 35 Q70 15 55 32" fill="#80BFFF" stroke="#5C4033" strokeWidth="3" />
-                                                <ellipse cx="50" cy="65" rx="42" ry="32" fill="white" stroke="#5C4033" strokeWidth="3" />
-                                                <path d="M15 55 Q50 30 85 55 L85 60 Q50 40 15 60 Z" fill="#80BFFF" />
-                                                <circle cx={38 + mousePos.x * 4} cy={62 + mousePos.y * 4} r="4" fill="#5C4033" />
-                                                <circle cx={62 + mousePos.x * 4} cy={62 + mousePos.y * 4} r="4" fill="#5C4033" />
-                                                <path d="M48 75 Q50 78 52 75" stroke="#5C4033" strokeWidth="2" fill="none" />
-                                            </svg>
-                                        </motion.div>
-                                        {/* 吉伊卡哇 */}
-                                        <motion.div animate={{ y: [0, -8, 0], scale: isClicked ? 1.1 : 1 }} transition={{ duration: 3, repeat: Infinity }} className="w-32 h-32 z-20 origin-bottom">
-                                            <svg viewBox="0 0 100 100">
-                                                <circle cx="28" cy="28" r="10" fill="white" stroke="#5C4033" strokeWidth="3" />
-                                                <circle cx="72" cy="28" r="10" fill="white" stroke="#5C4033" strokeWidth="3" />
-                                                <ellipse cx="50" cy="60" rx="45" ry="38" fill="white" stroke="#5C4033" strokeWidth="3" />
-                                                <circle cx={35 + mousePos.x * 5} cy={58 + mousePos.y * 5} r="5" fill="#5C4033" />
-                                                <circle cx={65 + mousePos.x * 5} cy={58 + mousePos.y * 5} r="5" fill="#5C4033" />
-                                                <path d="M47 70 Q50 73 53 70" stroke="#5C4033" strokeWidth="2" fill="none" />
-                                            </svg>
-                                        </motion.div>
-                                        {/* 乌萨奇 */}
-                                        <motion.div animate={{ y: [0, -6, 0], rotate: 2 + mousePos.x * -2 }} transition={{ duration: 2.8, repeat: Infinity }} className="w-28 h-40 -ml-4 z-10 origin-bottom">
-                                            <svg viewBox="0 0 100 140">
-                                                <path d="M35 50 L30 10 Q40 0 50 15 Z" fill="#FFF3AD" stroke="#5C4033" strokeWidth="3" />
-                                                <path d="M65 50 L70 5 Q80 -5 85 15 Z" fill="#FFF3AD" stroke="#5C4033" strokeWidth="3" />
-                                                <ellipse cx="50" cy="95" rx="42" ry="34" fill="#FFF3AD" stroke="#5C4033" strokeWidth="3" />
-                                                <circle cx={38 + mousePos.x * 4} cy={92 + mousePos.y * 4} r="4" fill="#5C4033" />
-                                                <circle cx={62 + mousePos.x * 4} cy={92 + mousePos.y * 4} r="4" fill="#5C4033" />
-                                                <path d="M48 102 Q50 105 52 102" stroke="#5C4033" strokeWidth="2" fill="none" />
-                                            </svg>
-                                        </motion.div>
+                    <main className="pt-32 px-6 max-w-6xl mx-auto relative z-10">
+                        <AnimatePresence mode="wait">
+                            {isExploreOpen ? (
+                                <motion.section 
+                                    key="game"
+                                    initial={{ opacity: 0, y: 50 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -50 }}
+                                    className="py-10"
+                                >
+                                    <div className="text-center mb-8">
+                                        <h2 className="text-4xl font-black italic mb-2 tracking-widest">CHIIKAWA ADVENTURE</h2>
+                                        <p className="font-bold opacity-60 italic">勇敢讨伐小桃和甲壳虫，集齐 6 颗星星抵达终点！</p>
                                     </div>
-                                    <button onClick={handleWasshoi} className="mt-8 px-10 py-2 bg-white border-[3px] border-[#5C4033] rounded-full text-xl font-black shadow-[4px_4px_0_0_#5C4033] hover:bg-[#FFF3AD] transition-colors">わッ！</button>
-                                </div>
-                            </motion.div>
-                        </section>
+                                    <ChiikawaGame onClose={() => setIsExploreOpen(false)} />
+                                </motion.section>
+                            ) : (
+                                <motion.div
+                                    key="home"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                >
+                                    {/* 英雄区 */}
+                                    <section className="flex flex-col lg:flex-row items-center gap-12 mb-32">
+                                        <div className="flex-1 space-y-6">
+                                            <div className="inline-block px-4 py-1 bg-[#FFF3AD] border-2 border-[#5C4033] rounded-full text-xs font-bold uppercase tracking-widest">向雪 RAINCO 的秘密基地</div>
+                                            <h1 className="text-5xl md:text-8xl font-black leading-none">又快乐地 <br/><span className="text-[#FF9B9B]">度过了一天</span> !</h1>
+                                            <p className="text-lg opacity-80 max-w-lg leading-relaxed font-bold">这里是雪球的数字避风港。点击三小只触发烟花特效✨</p>
+                                            <div className="flex gap-4 pt-4">
+                                                <button onClick={() => setIsExploreOpen(true)} className="px-8 py-4 bg-[#5C4033] text-white rounded-[24px] font-bold shadow-[6px_6px_0_0_#FFDAE9] hover:scale-105 transition-transform group">
+                                                    开始探险 (ヤ哈!) <span className="inline-block group-hover:translate-x-1 transition-transform">→</span>
+                                                </button>
+                                            </div>
+                                        </div>
 
-                        <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                            <motion.div onClick={() => setIsJournalOpen(true)} whileHover={{ y: -5 }} className="md:col-span-2 row-span-2 p-10 bg-white border-[3px] border-[#5C4033] rounded-[48px] shadow-[10px_10px_0_0_#DCF2FF] cursor-pointer">
-                                <h2 className="text-4xl font-black mb-4">讨伐日记</h2>
-                                <p className="opacity-70 font-medium leading-relaxed">这里记录了我所有的职业探险历程，每一段经历都是成长的勋章。</p>
-                                <div className="flex items-center gap-4 mt-8">
-                                    <div className="w-12 h-12 bg-[#FFF3AD] border-2 border-[#5C4033] rounded-full flex items-center justify-center text-xl">⚔️</div>
-                                    <span className="font-bold underline decoration-4 underline-offset-4">查看完整工作经历</span>
-                                </div>
-                            </motion.div>
-                            <div className="md:col-span-2 p-8 bg-[#FFF3AD] border-[3px] border-[#5C4033] rounded-[40px] flex items-center gap-6">
-                                <div className="w-20 h-20 bg-white border-2 border-[#5C4033] rounded-3xl flex items-center justify-center text-4xl">🎒</div>
-                                <div>
-                                    <h3 className="text-xl font-bold">今日状态：( ꩜ ᯅ ꩜ )</h3>
-                                    <p className="text-sm opacity-60 font-bold">正在整理藏宝库...</p>
-                                </div>
-                            </div>
-                            <div onClick={() => setIsStrengthOpen(true)} className="p-8 bg-[#E0F2FF] border-[3px] border-[#5C4033] rounded-[40px] cursor-pointer hover:scale-105 transition-transform">
-                                <h3 className="text-xl font-bold mb-4">技能藏宝库 ✨</h3>
-                                <p className="text-sm opacity-60 leading-relaxed">点此查看雪球的各种秘密技能和设计工具包。</p>
-                            </div>
-                            <div className="p-8 bg-[#FFDAE9] border-[3px] border-[#5C4033] rounded-[40px] flex items-center justify-center text-5xl">🍭</div>
-                        </section>
+                                        <motion.div 
+                                            ref={containerRef}
+                                            onMouseMove={handleMouseMove}
+                                            className="flex-1 relative"
+                                        >
+                                            <div 
+                                                onClick={handleWasshoi}
+                                                className="relative w-full aspect-square max-w-[450px] mx-auto bg-gradient-to-b from-[#DCF2FF] to-white rounded-full border-[4px] border-[#5C4033] shadow-[20px_20px_0_0_#FFDAE9] flex flex-col items-center justify-center overflow-hidden cursor-pointer group"
+                                            >
+                                                <div className="relative w-full h-64 flex items-end justify-center pointer-events-none">
+                                                    <motion.div animate={{ y: [0, -5, 0], rotate: -2 + mousePos.x * 2 }} transition={{ duration: 3.5, repeat: Infinity }} className="w-24 h-24 -mr-4 z-10 origin-bottom">
+                                                        <svg viewBox="0 0 100 100">
+                                                            <path d="M25 35 Q30 15 45 32" fill="#80BFFF" stroke="#5C4033" strokeWidth="3" />
+                                                            <path d="M75 35 Q70 15 55 32" fill="#80BFFF" stroke="#5C4033" strokeWidth="3" />
+                                                            <ellipse cx="50" cy="65" rx="42" ry="32" fill="white" stroke="#5C4033" strokeWidth="3" />
+                                                            <circle cx={38 + mousePos.x * 4} cy={62 + mousePos.y * 4} r="4" fill="#5C4033" />
+                                                            <circle cx={62 + mousePos.x * 4} cy={62 + mousePos.y * 4} r="4" fill="#5C4033" />
+                                                            <path d="M48 75 Q50 78 52 75" stroke="#5C4033" strokeWidth="2" fill="none" />
+                                                        </svg>
+                                                    </motion.div>
+                                                    <motion.div animate={{ y: [0, -8, 0], scale: isClicked ? 1.2 : 1 }} transition={{ duration: 3, repeat: Infinity }} className="w-32 h-32 z-20 origin-bottom">
+                                                        <svg viewBox="0 0 100 100">
+                                                            <circle cx="28" cy="28" r="10" fill="white" stroke="#5C4033" strokeWidth="3" />
+                                                            <circle cx="72" cy="28" r="10" fill="white" stroke="#5C4033" strokeWidth="3" />
+                                                            <ellipse cx="50" cy="60" rx="45" ry="38" fill="white" stroke="#5C4033" strokeWidth="3" />
+                                                            <circle cx={35 + mousePos.x * 5} cy={58 + mousePos.y * 5} r="5" fill="#5C4033" />
+                                                            <circle cx={65 + mousePos.x * 5} cy={58 + mousePos.y * 5} r="5" fill="#5C4033" />
+                                                            <path d="M47 70 Q50 73 53 70" stroke="#5C4033" strokeWidth="2" fill="none" />
+                                                        </svg>
+                                                    </motion.div>
+                                                    <motion.div animate={{ y: [0, -6, 0], rotate: 2 + mousePos.x * -2 }} transition={{ duration: 2.8, repeat: Infinity }} className="w-28 h-40 -ml-4 z-10 origin-bottom">
+                                                        <svg viewBox="0 0 100 140">
+                                                            <path d="M35 50 L30 10 Q40 0 50 15 Z" fill="#FFF3AD" stroke="#5C4033" strokeWidth="3" />
+                                                            <path d="M65 50 L70 5 Q80 -5 85 15 Z" fill="#FFF3AD" stroke="#5C4033" strokeWidth="3" />
+                                                            <ellipse cx="50" cy="95" rx="42" ry="34" fill="#FFF3AD" stroke="#5C4033" strokeWidth="3" />
+                                                            <circle cx={38 + mousePos.x * 4} cy={92 + mousePos.y * 4} r="4" fill="#5C4033" />
+                                                            <circle cx={62 + mousePos.x * 4} cy={92 + mousePos.y * 4} r="4" fill="#5C4033" />
+                                                            <path d="M48 102 Q50 105 52 102" stroke="#5C4033" strokeWidth="2" fill="none" />
+                                                        </svg>
+                                                    </motion.div>
+                                                </div>
+                                                <div className="mt-8 px-10 py-2 bg-white border-[3px] border-[#5C4033] rounded-full text-xl font-black shadow-[4px_4px_0_0_#5C4033] group-hover:bg-[#FFF3AD] transition-colors pointer-events-none">わッ！</div>
+                                            </div>
+                                        </motion.div>
+                                    </section>
+
+                                    <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                                        <motion.div onClick={() => setIsJournalOpen(true)} whileHover={{ y: -5 }} className="md:col-span-2 row-span-2 p-10 bg-white/70 backdrop-blur-md border-[3px] border-[#5C4033] rounded-[48px] shadow-[10px_10px_0_0_#DCF2FF] cursor-pointer group">
+                                            <h2 className="text-4xl font-black mb-4 group-hover:text-[#FF9B9B] transition-colors">讨伐日记</h2>
+                                            <p className="opacity-70 font-medium leading-relaxed">记录了向雪所有的探险历程。</p>
+                                            <div className="flex items-center gap-4 mt-8">
+                                                <div className="w-12 h-12 bg-[#FFF3AD] border-2 border-[#5C4033] rounded-full flex items-center justify-center text-xl">⚔️</div>
+                                                <span className="font-bold underline decoration-4 underline-offset-4">查看完整工作经历</span>
+                                            </div>
+                                        </motion.div>
+                                        <div className="md:col-span-2 p-8 bg-[#FFF3AD]/80 backdrop-blur-md border-[3px] border-[#5C4033] rounded-[40px] flex items-center gap-6">
+                                            <div className="w-20 h-20 bg-white border-2 border-[#5C4033] rounded-3xl flex items-center justify-center text-4xl">🎒</div>
+                                            <div>
+                                                <h3 className="text-xl font-bold">今日状态：( ꩜ ᯅ ꩜ )</h3>
+                                                <p className="text-sm opacity-60 font-bold">正在整理藏宝库...</p>
+                                            </div>
+                                        </div>
+                                        <div onClick={() => setIsStrengthOpen(true)} className="p-8 bg-[#E0F2FF]/80 backdrop-blur-md border-[3px] border-[#5C4033] rounded-[40px] cursor-pointer hover:scale-105 transition-transform">
+                                            <h3 className="text-xl font-bold mb-4">技能藏宝库 ✨</h3>
+                                            <p className="text-sm opacity-60 leading-relaxed">查看各种秘密技能。</p>
+                                        </div>
+                                        <div className="p-8 bg-[#FFDAE9]/80 backdrop-blur-md border-[3px] border-[#5C4033] rounded-[40px] flex items-center justify-center text-5xl">🍭</div>
+                                    </section>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </main>
 
-                    {/* --- 弹窗组件集合 --- */}
                     <AnimatePresence>
-                        {/* 关于我 */}
                         {isAboutOpen && (
-                            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setIsAboutOpen(false)}>
+                            <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setIsAboutOpen(false)}>
                                 <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white p-8 md:p-12 rounded-[40px] max-w-5xl w-full border-4 border-[#5C4033] shadow-2xl overflow-y-auto max-h-[90vh] custom-scrollbar" onClick={e => e.stopPropagation()}>
                                     <div className="flex justify-between items-start mb-8">
                                         <h2 className="text-5xl font-black italic">向 雪 <span className="text-xl font-normal opacity-40 ml-4">RAINCO</span></h2>
@@ -189,13 +805,13 @@
                                         <div className="space-y-6">
                                             <div className="space-y-2">
                                                 <p className="font-black text-[#FF9B9B] uppercase tracking-widest text-sm">Background</p>
-                                                <p className="font-bold text-lg leading-relaxed">社会学硕士 · 擅长市场调研与用户研究。拥有 2 年品牌传播与策划经验，能精准洞察用户需求并转化为创意方案。</p>
+                                                <p className="font-bold text-lg leading-relaxed">社会学硕士 · 擅长市场调研与用户研究。拥有 2 年品牌传播与策划经验。</p>
                                             </div>
-                                            <div className="p-6 bg-[#FFF9F2] border-2 border-[#5C4033] rounded-3xl space-y-3">
-                                                <p className="font-bold">🎂 2000.12.10</p>
-                                                <p className="font-bold">🏠 重庆市渝北区</p>
-                                                <p className="font-bold">📧 2292976290@qq.com</p>
-                                                <p className="font-bold">📞 17763024154</p>
+                                            <div className="p-6 bg-[#FFF9F2] border-2 border-[#5C4033] rounded-3xl space-y-3 font-bold">
+                                                <p>🎂 2000.12.10</p>
+                                                <p>🏠 重庆市渝北区</p>
+                                                <p>📧 2292976290@qq.com</p>
+                                                <p>📞 17763024154</p>
                                             </div>
                                         </div>
                                         <div className="space-y-6">
@@ -203,11 +819,11 @@
                                             <div className="space-y-4">
                                                 <div className="flex justify-between items-center p-4 border-2 border-[#5C4033] rounded-2xl bg-[#DCF2FF]">
                                                     <span className="font-black text-lg">上海师范大学</span>
-                                                    <span className="text-sm font-bold opacity-60">社会学 · 硕士</span>
+                                                    <span className="text-sm font-bold opacity-60">硕士</span>
                                                 </div>
                                                 <div className="flex justify-between items-center p-4 border-2 border-[#5C4033] rounded-2xl">
                                                     <span className="font-black text-lg">中南民族大学</span>
-                                                    <span className="text-sm font-bold opacity-60">社会学 · 本科</span>
+                                                    <span className="text-sm font-bold opacity-60">本科</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -215,10 +831,8 @@
                                 </motion.div>
                             </div>
                         )}
-
-                        {/* 讨伐日记 (工作经历) */}
                         {isJournalOpen && (
-                            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setIsJournalOpen(false)}>
+                            <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setIsJournalOpen(false)}>
                                 <motion.div initial={{ x: 100, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 100, opacity: 0 }} className="bg-white p-8 md:p-12 rounded-[40px] max-w-4xl w-full border-4 border-[#5C4033] shadow-2xl overflow-y-auto max-h-[85vh] custom-scrollbar" onClick={e => e.stopPropagation()}>
                                     <div className="flex justify-between items-center mb-10">
                                         <h3 className="text-3xl font-black italic">⚔️ 讨伐记录</h3>
@@ -238,10 +852,8 @@
                                 </motion.div>
                             </div>
                         )}
-
-                        {/* 藏宝库 */}
                         {isStrengthOpen && (
-                            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setIsStrengthOpen(false)}>
+                            <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setIsStrengthOpen(false)}>
                                 <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white p-10 rounded-[40px] max-w-2xl w-full border-4 border-[#5C4033] shadow-2xl" onClick={e => e.stopPropagation()}>
                                     <div className="flex justify-between items-center mb-8">
                                         <h3 className="text-3xl font-black italic">🍭 技能藏宝库</h3>
@@ -250,11 +862,11 @@
                                     <div className="space-y-6">
                                         <div className="p-6 bg-[#FFDAE9]/30 rounded-[32px] border-2 border-[#5C4033]/10">
                                             <p className="font-black text-[#FF9B9B] text-lg mb-2 underline decoration-[#5C4033]/10 decoration-4">设计能力</p>
-                                            <p className="font-bold text-sm leading-loose opacity-90">独自运营个人设计账号；精通 PS、PR 等设计软件；掌握各类周边设计的成品输出。</p>
+                                            <p className="font-bold text-sm leading-loose opacity-90">独自运营个人设计账号；精通 PS、PR 等设计软件。</p>
                                         </div>
                                         <div className="p-6 bg-[#DCF2FF]/30 rounded-[32px] border-2 border-[#5C4033]/10">
                                             <p className="font-black text-[#5C4033] text-lg mb-2 underline decoration-[#5C4033]/10 decoration-4">核心软实力</p>
-                                            <p className="font-bold text-sm leading-loose opacity-90">英语口语流利；精通 Office 办公全家桶；极强的市场趋势嗅觉与用户心理洞察力。</p>
+                                            <p className="font-bold text-sm leading-loose opacity-90">英语口语流利；精通 Office 办公全家桶。</p>
                                         </div>
                                     </div>
                                 </motion.div>
